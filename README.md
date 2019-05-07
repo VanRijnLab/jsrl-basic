@@ -20,7 +20,7 @@ Docker needs to be given ownership of the data folder (only once) [(details)](ht
 
     sudo chown -R 33:33 jsrl/data
 
-(Depending on the system's permissions setup, read access may also need to be given for the whole directory.)
+(Depending on the system's permissions setup, read access may also need to be given for the whole `jsrl` directory.)
 
 Launch the server:
 
@@ -29,6 +29,7 @@ Launch the server:
 The Docker setup launches three containers: a basic nginx web server, a PHP server, and an OpenCPU R server that we can send R computations to (rather than having to do them in JavaScript in the browser). The OpenCPU server is not used in the basic example (`us-towns.html`), so it is commented out in `docker-compose.yml`.
 
 The web server listens on a non-standard port (currently set to 44392 in `docker-compose.yml`, but this can be changed) to allow multiple such servers running simultaneously on the same domain.
+
 In my own setup I have a central Nginx server that redirects traffic coming in on port 80 to the desired web server based on the URL.
 I include the following in `/etc/nginx/sites-available/default` to reroute `example.com/jsrl-basic` to this server:
 
@@ -43,10 +44,10 @@ I include the following in `/etc/nginx/sites-available/default` to reroute `exam
 
 
 
-You can then access the webpage at this domain: [example.com/jsrl-basic/us-towns.html](example.com/jsrl-basic/us-towns.html)
+The webpage can then be accessed at this domain: [example.com/jsrl-basic/us-towns.html](example.com/jsrl-basic/us-towns.html)
 
 
-### Data
+## Data
 
-Data is saved in the `jsrl/data` folder (only at the end of the task) and persists when the containers are shut down.
+Response data is saved in the `jsrl/data` folder (only at the end of the task) and persists when the containers are shut down.
 
