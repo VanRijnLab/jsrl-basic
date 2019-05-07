@@ -1,0 +1,90 @@
+
+#jspsych-html-keyboard-word-response-stimulus {
+    font-size: 36px;
+    text-align: center;
+    padding-bottom: 50px;
+}
+
+#jspsych-html-keyboard-word-response-answerInput {
+    font-size: 28px;
+    color: black;
+    border: none;
+    border-bottom: 2px solid black;
+    padding: 10px;
+    text-align: center;
+    text-transform: lowercase;
+}
+
+#jspsych-html-keyboard-word-response-feedback {
+    font-size: 28px;
+    text-align: center;
+    padding-top: 50px;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+#jspsych-target {
+    width: 100%;
+    height: 100%;
+}
+
+#rl-progress-bar {
+    position: absolute;
+    width: 100%;
+    border-bottom: 1px solid #ddd;
+    background-color: #fafafa;
+    margin: 0;
+    text-align: center;
+}
+
+#rl-progress-bar .rl-score {
+    padding: 10px 75px;
+    display: inline-block;
+    font-family: 'Open Sans', 'Arial';
+    font-size: 16px;
+    color: #333;
+    display: none;
+}
+
+#rl-progress-bar .rl-timer {
+    padding: 10px 75px;
+    display: inline-block;
+    font-family: 'Open Sans', 'Arial';
+    font-size: 16px;
+    color: #333;
+    display: none;
+}
+
+#rl-image {
+    max-height: 45vh;
+    width: auto;
+}
+
+#jspsych-html-voicekey-response-hint {
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+}
+
+
+kbd {
+    display: inline-block;
+    margin: 0 .1em;
+    padding: .1em .6em;
+    font-family: Arial,"Helvetica Neue",Helvetica,sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    color: #242729;
+    text-shadow: 0 1px 0 #FFF;
+    background-color: #e1e3e5;
+    border: 1px solid #adb3b9;
+    border-radius: 3px;
+    box-shadow: 0 1px 0 rgba(12,13,14,0.2),0 0 0 2px #FFF inset;
+    white-space: nowrap;
+}
