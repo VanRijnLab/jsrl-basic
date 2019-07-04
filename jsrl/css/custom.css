@@ -72,6 +72,80 @@ body {
     text-align: center;
 }
 
+#jspsych-html-image-mc-response-hint {
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.jspsych-btn {
+    width: 50%;
+    display: block;
+    padding: 12px 12px;
+    margin: 0px;
+    margin-right: auto;
+    margin-left: auto;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Open Sans', 'Arial', sans-serif;
+    cursor: pointer;
+    line-height: 1.4;
+    text-align: center;
+    white-space: nowrap;
+    background-image: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #333;
+    background-color: #fafafa;
+    border-color: #ccc;
+  }
+  
+  .jspsych-btn:focus {
+      outline: none;
+  }
+
+  .jspsych-btn::-moz-focus-inner {
+    border: 0;
+  }
+
+  .jspsych-btn:disabled {
+    background-color: #eee;
+    color: #888;
+    border-color: #ccc;
+    cursor: not-allowed;
+  }
+
+  .jspsych-btn:disabled.correct-answer {
+    background-image: url("checkmark.png");
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-color: #00c011;
+    color: #fff;
+  }
+
+  .jspsych-btn:disabled.wrong-answer {
+    background-image: url("crossmark.png");
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-color: #ff0e0e;
+    color: #fff;
+    position: relative;
+    animation-name: shake-wrong-answer;
+    animation-duration: 5s;
+    animation-timing-function: ease-in;
+  }
+
+  @keyframes shake-wrong-answer {
+    0% {left: 0}
+    1% {left: -3px}
+    2% {left: 5px}
+    3% {left: -8px}
+    4% {left: 8px}
+    5% {left: -5px}
+    6% {left: 3px}
+    7% {left: 0}
+  }
+  
 
 kbd {
     display: inline-block;

@@ -73,6 +73,9 @@ function get_next_fact(current_time) {
         question.study = true; // Show the answer
     }
 
+    // Add answer choices for multiple-choice format
+    question.choices = get_answer_options(question);
+
     return question;
 
 
@@ -83,6 +86,15 @@ function get_next_fact(current_time) {
     function has_seen(fact) {
         return fact.activation > Number.NEGATIVE_INFINITY;
     }
+
+}
+
+function get_answer_options(fact, n = 4) {
+    const correct_answer = fact.answer;
+    var distractors = facts.filter(f => f.answer != correct_answer);
+    var choices = shuffle(distractors).slice(0, n-1).map(f => f.answer);
+    choices.push(correct_answer);
+    return shuffle(choices);
 }
 
 function get_next_practised_fact() {

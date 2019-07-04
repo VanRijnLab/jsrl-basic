@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Experiment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="js/jsPsych/jspsych.js"></script>
+    <script src="js/jsPsych/plugins/jspsych-external-html.js"></script>
+    <script src="js/jsPsych/plugins/jspsych-survey-multi-choice.js"></script>
+    <script src="js/jsPsych/plugins/jspsych-instructions.js"></script>
+    <script src="js/jsPsych/plugins/jspsych-call-function.js"></script>
+    <script src="js/jsPsych/plugins/jspsych-survey-text.js"></script>
+    <script src="js/jsPsych/plugins/custom/jspsych-html-keyboard-word-response.js"></script>
+    <script src="js/jsPsych/plugins/custom/jspsych-html-image-mc-response.js"></script>
+    <script src="lib/jquery-3.3.1.min.js"></script>
+    <script src="lib/papaparse.min.js"></script>
+    <script src="lib/opencpu-0.5.js"></script>
+    <script src="js/rl-model.js"></script>
+    <link rel="stylesheet" type="text/css" media="screen" href="js/jsPsych/css/jspsych.css" />
+    <link rel="stylesheet" type="text/css" media="screen" href="css/custom.css" />
+
+</head>
+
+<body>
+    <div id="rl-progress-bar">
+        <span class="rl-score">Items studied: <span id="items-studied">0</span></span>
+        <span class="rl-timer">Time: <progress value="1" id="time-left"></progress></span>
+    </div>
+    <div id="jspsych-target"></div>
+</body>
+
+<script>
+
+    //---------------------//
+    //    Configuration    //
+    //---------------------//
+
+    // Durations
+    const rl_duration = 0.5 * 60000; // duration of the learning session; 8 minutes
+    const correct_feedback_duration = 600; // 0.6 seconds
+    const almost_correct_feedback_duration = 1200; // 1.2 seconds
+    const incorrect_feedback_duration = 4000; // 4 seconds
+    const trial_duration = 30000; // automatically advance to the next trial after 30 seconds
+    const permissible_edit_distance = 1; // Damerau-Levenshtein distance from the correct answer at which a response is still correct
+
+    // Materials
+    const materials = "./res/set1.csv"; // file listing stimuli
+    const n_items = 30; // number of items to include in session
+    const shuffle_items = true; // new items are picked randomly
+    const preload_images = true; // preloading prevents delays
+    const image_dir = "./res/img/set1/"; // directory in which images are stored
+    const image_type = "png"; // image file type
+
+    // Spacing model
+    const lookahead_time = 15000;
+    const forget_threshold = -0.8;
+    const default_alpha = 0.3;
+
+    // Experiment setup
+
+    // Do not start task unless the window has the required size
+    const min_screen_width = 1024;
+    const min_screen_height = 768;
+
+    // Check for loss of focus, and terminate task if focus was lost for too long
+    const enable_focus_check = false;
+    const max_focus_loss_interval = 5000;
+
+    //---------------------//
+    //        Setup        //
+    //---------------------//
+
+    // Preload all images in the specified directory
+    var images = [];
+
+    function load_images(image_dir) {
+        var url = window.location.href.replace(/([^/]*)$/, "") + image_dir;
+        $.ajax({
+            url: url,
+            success: function (data) {
+                $(data).find("a:contains(" + image_type + ")").each(function () {
+                    var filename = image_dir + this.text;
+                    var img = new Image();
+                    img.src = filename;
+                    images[filename] = img;
+                });
+            }
+        });
+    }
+
+    // Write experiment data to server
+    function save_data(name, data, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'write-data.php');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function () {
+            if (this.readyState === XMLHttpRequest.DONE && this.status === 200) {
+                callback();
+            }
+        }
+        xhr.send(JSON.stringify({ filename: name, filedata: data }));
+    }
+
+    // Generate a random subject ID with 15 characters
+    var subject_id = jsPsych.randomization.randomID(15);
+
+    // Get browser information
+    var browser_info = {
+        user_agent: navigator.userAgent,
+        on_chrome: navigator.userAgent.match(/chrome/gi) != null,
+        on_mobile: navigator.userAgent.match(/mobi/gi) != null,
+        language: navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage,
+        screen_resolution: [window.screen.width, window.screen.height],
+        platform: navigator.platform,
+        timezone: window.Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+
+    jsPsych.data.addProperties({
+        subject: subject_id,
+        browser_info: JSON.stringify(browser_info),
+    });
+
+    // Detect loss of focus on experiment tab/window
+    var focus_lost = null;
+    var ended_too_soon = false;
+    check_focus_loss = function (data) {
+        if (enable_focus_check) {
+            if (data.event == "blur") {
+                // Experiment has lost focus
+                focus_lost = Date.now();
+            }
+            if (data.event == "focus" & focus_lost != null) {
+                time_away = Date.now() - focus_lost;
+                focus_lost = null;
+                // Stop the experiment if user was away for more than 5 seconds
+                if (time_away > max_focus_loss_interval && jsPsych.currentTrial().type === "html-keyboard-word-response") {
+                    ended_too_soon = true;
+                    jsPsych.endExperiment("The experiment has been terminated because you clicked away.")
+                }
+            }
+        }
+    }
+
+    var count_studied = 0;
+    var test_score = 0;
+    var test_items = 0;
+
+
+    //---------------------//
+    // Timeline components //
+    //---------------------//
+
+    // Setup
+    var rl_setup = {
+        type: 'call-function',
+        func: function () {
+            load_facts(materials, shuffle_items); // calls the function in rl-model.js
+            load_images(image_dir);
+        }
+    };
+
+    // RL instructions
+    var rl_instructions = {
+        type: 'instructions',
+        pages: ['<h2>Instructions</h2> \
+        <p>In this task you will learn the names of towns in the United States.</p> \
+        <p>A map of the US will be shown on screen.</br> \
+        Grey dots <span style="color:#CCC; vertical-align: text-bottom;">⬤</span> mark the locations of all the towns.</br> \
+        A red dot <span style="color:#FF0000; vertical-align: text-bottom;">⬤</span> highlights a single town in each trial.</p> \
+        <img src="./res/img/set1/set1_01.png" height="300"> \
+        <p>When you encounter a town for the first time, you will see its name below the map.</p> \
+        <p><b>Type the name of the highlighted town <i>in lowercase</i> and press the <kbd>Enter ⏎</kbd> key to confirm your answer.</b></br> \
+        Try to respond as quickly and accurately as possible. \
+        If you do not remember the answer, simply press <kbd>Enter ⏎</kbd>.</br> \
+        You will receive feedback after each response.</p> \
+        <p>When you are ready, place your hands on the keyboard and press the <kbd>F</kbd> key to begin.</p>'],
+        key_forward: 'f'
+    };
+
+
+    // RL trial sequence
+    var rl_start_time;
+
+    // Initialise and continuously update the timer at the top of the screen
+    var rl_timer = {
+        type: 'call-function',
+        func: function () {
+            rl_start_time = Date.now();
+            rl_timer_ticks = setInterval(function () {
+                var proportion_time_elapsed = (Date.now() - rl_start_time) / rl_duration;
+                document.querySelector("#time-left").value = 1 - proportion_time_elapsed;
+            }, 100);
+            document.querySelector(".rl-score").style.display = "inline-block";
+            document.querySelector(".rl-timer").style.display = "inline-block";
+            $("#items-studied").html(count_studied + "/" + n_items);
+        }
+    };
+
+
+    // RL trial
+    var rl_trial = {
+        type: "html-image-mc-response",
+        correct_feedback_duration: correct_feedback_duration,
+        incorrect_feedback_duration: incorrect_feedback_duration,
+        trial_duration: trial_duration,
+        question: function () {
+            return get_next_fact(Date.now()); // calls the function in rl-model.js
+        },
+        on_finish: function (data) {
+            record_response(data);
+            if (data.study) {
+                count_studied++;
+                $("#items-studied").html(count_studied + "/" + n_items);
+            }
+        }
+    };
+
+    // Present new trials until time is up 
+    var loop_rl_trial = {
+        timeline: [rl_trial],
+        loop_function: function () {
+            if (Date.now() - rl_start_time < rl_duration) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    };
+
+
+    // Test instructions
+    var test_instructions = {
+        type: 'instructions',
+        pages: ['<h2>Instructions</h2> \
+            <p>You will now be tested on the US towns that you practised earlier.</br> \
+            You will see the same map of the US as before.</p> \
+            <p><b>Type the name of the highlighted town <i>in lowercase</i> and press the <kbd>Enter ⏎</kbd> key to confirm your answer.</b></br> \
+            Try to respond as quickly and accurately as possible. \
+            If you do not remember the answer, simply press <kbd>Enter ⏎</kbd>.</br> \
+            This time you will not receive feedback after your response.</p> \
+            <p>When you are ready, place your hands on the keyboard and press the <kbd>F</kbd> key to begin.</p>'
+        ],
+        key_forward: 'f'
+    };
+
+
+    // RL test sequence
+    // Test trial
+    var rl_test = {
+        type: "html-image-mc-response",
+        show_feedback: false,
+        question: function () {
+            return get_next_practised_fact(); // calls the function in rl-model.js
+        },
+        on_finish: function (data) {
+            record_response(data);
+            test_items = test_items + 1;
+            if (data.correct) {
+                test_score = test_score + 1;
+            }
+        }
+    };
+
+    // Present a new test trial for every fact that was studied 
+    var loop_rl_test = {
+        timeline: [rl_test],
+        loop_function: function () {
+            return is_next_practised_fact();
+        }
+    };
+
+    // Debriefing
+    var test_debriefing = {
+        type: 'instructions',
+        pages: function () {
+            return ["<p>You have completed the test.</p> \
+            <p>You correctly remembered <b>" + test_score + "</b> of the <b>" + test_items + "</b> town names that you studied.</p> \
+            <p>Press the <kbd>spacebar</kbd> to finish.</p>"];
+        },
+        key_forward: 'spacebar'
+    };
+
+
+
+
+    //---------------------//
+    // Experiment timeline //
+    //---------------------//
+
+    var timeline = [];
+
+    // Preamble
+    timeline.push(rl_setup);                // Set up RL model
+    timeline.push(rl_instructions);         // RL instructions
+
+    // // RL sequence
+    timeline.push(rl_timer);                // Start and keep updating the timer
+    timeline.push(loop_rl_trial);           // Present new trials until time is up
+
+    // // Test sequence
+    timeline.push(test_instructions);       // Test instructions
+    timeline.push(loop_rl_test);            // Present all test items
+    timeline.push(test_debriefing);         // Test debriefing
+
+    //---------------------//
+    //    Run experiment   //
+    //---------------------//
+
+    jsPsych.init({
+        display_element: 'jspsych-target',
+        timeline: timeline,
+        exclusions: {
+            min_width: min_screen_width,
+            min_height: min_screen_height
+        },
+        on_interaction_data_update: check_focus_loss,
+        on_finish: function () {
+            save_data("test_" + $.now() + "_" + subject_id, jsPsych.data.get().csv(), function () {
+                clearInterval(rl_timer_ticks);
+                correct = responses.map(r => r.correct);
+                perc_correct = 100 * correct.reduce((a, b) => a + b) / correct.length;
+                document.write('<div class="endscreen" style="text-align:center; border:0px solid; padding:10px; font-size:120%; float:center"><br><br><br><h2>All done! Thank you for participating in this study.</h2></br><p>You completed ' + responses.length + ' trials, covering ' + count_studied + ' different towns, with an overall accuracy of ' + Number(perc_correct).toFixed(1) + '%.</p></div></div>')
+                document.close();
+            });
+        }
+
+    });
+
+</script>
+
+</html>
